@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#0f172a" />
+<title>한글 모아모아 최적 배치 도우미</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#172236; --panel2:#0f192b; --line:#34445e;
+    --text:#ecf4ff; --muted:#9eb0c9; --blue:#3b82f6; --green:#16c79a;
+    --pink:#ef4b9a; --yellow:#f5b700; --danger:#ef4444; --ghost:#ffffff;
+    --cell:min(6.4vw,30px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:linear-gradient(180deg,#09111e,#101b2c);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",Segoe UI,sans-serif}
+  body{min-height:100vh}
+  button{font:inherit;color:inherit;cursor:pointer}
+  .app{max-width:1120px;margin:auto;padding:12px 12px calc(22px + env(safe-area-inset-bottom))}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  h1{font-size:clamp(20px,4.7vw,31px);margin:0;letter-spacing:-.5px}
+  .sub{font-size:12px;color:var(--muted);margin-top:3px}
+  .pill{font-size:12px;border:1px solid var(--line);background:#111c2f;padding:7px 10px;border-radius:999px;white-space:nowrap}
+  .layout{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:start}
+  .left{position:sticky;top:8px}
+  .card{background:rgba(23,34,54,.96);border:1px solid #2b3c58;border-radius:18px;box-shadow:0 12px 35px rgba(0,0,0,.18)}
+  .board-card{padding:7px}
+  .board-wrap{position:relative;width:max-content;margin:auto;border:2px solid #50617b;border-radius:9px;overflow:hidden;background:#080f1a}
+  #board{display:grid;grid-template-columns:repeat(10,var(--cell));grid-template-rows:repeat(16,var(--cell));gap:1px;padding:1px;background:#1f2d43;touch-action:none}
+  .cell{width:var(--cell);height:var(--cell);background:#08111f;border-radius:3px;position:relative;transition:background .08s,transform .08s;user-select:none}
+  .cell.filled{background:#4a5a72;box-shadow:inset 0 0 0 1px #677993}
+  .cell.ghost{z-index:2;box-shadow:inset 0 0 0 2px rgba(255,255,255,.42),0 0 9px rgba(255,255,255,.16);}
+  .cell.ghost-1{background:rgba(95,236,168,.68)}
+  .cell.ghost-2{background:rgba(99,194,255,.68)}
+  .cell.ghost-3{background:rgba(255,190,82,.68)}
+  .cell.ghost.bad{background:repeating-linear-gradient(135deg,rgba(255,90,90,.9) 0 7px,rgba(255,190,82,.72) 7px 14px)}
+  .cell .step-badge{position:absolute;left:1px;top:1px;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:#fff;color:#101827;font-weight:950;font-size:10px;box-shadow:0 1px 5px rgba(0,0,0,.35);z-index:4}
+  .board-tools{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px}
+  .btn{border:0;border-radius:9px;padding:8px 8px;font-size:12px;font-weight:800;background:#33445f}
+  .btn.primary{background:linear-gradient(180deg,#4d90ff,#3274e6)}
+  .btn.green{background:linear-gradient(180deg,#19c9a1,#0fa985)}
+  .btn.danger{background:#d74343}
+  .btn.outline{background:#101a2b;border:1px solid #42536d}
+  .btn:disabled{opacity:.42;cursor:not-allowed}
+  .status{margin-top:6px;background:#0e192a;border:1px solid #293b57;border-radius:9px;padding:6px 8px;font-size:10px;color:#bdcce0;line-height:1.35;min-height:36px}
+
+  .right{display:grid;gap:9px;min-width:0}
+  .right .card{border-radius:14px}
+  .section{padding:10px}
+  .section-title{font-size:16px;font-weight:900;margin-bottom:2px}
+  .hint{font-size:11px;color:var(--muted);line-height:1.4}
+  .selected-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;min-height:38px}
+  .sel-chip{display:flex;align-items:center;gap:5px;background:#0d1728;border:1px solid #364862;padding:4px 7px;border-radius:8px;font-weight:800;font-size:12px}
+  .sel-chip .x{border:0;background:#27374e;border-radius:8px;padding:3px 7px;color:#c9d6e8}
+  .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+  .actions .btn{padding:8px 10px;font-size:12px}
+  .piece-grid{display:grid;grid-template-columns:repeat(5,minmax(84px,1fr));gap:6px;margin-top:7px}
+  .piece{position:relative;min-height:104px;background:#0c1628;border:1.5px solid #2d405c;border-radius:11px;padding:21px 4px 6px;display:flex;flex-direction:column;align-items:center;justify-content:space-between}
+  .piece:active{transform:scale(.985)}
+  .piece.selected{border-color:#89baff;box-shadow:0 0 0 2px rgba(80,145,255,.2)}
+  .count{position:absolute;right:5px;bottom:6px;font-weight:900;font-size:11px;color:#dce9fb}
+  .piece-name{position:absolute;left:6px;top:6px;color:#8fa3be;font-size:9px;font-weight:700}
+  .piece-controls{position:absolute;right:4px;top:4px;display:flex;gap:2px;z-index:5}
+  .piece-ctl{width:22px;height:22px;padding:0;border:1px solid #435873;background:#18263b;border-radius:6px;color:#e8f1ff;font-size:13px;font-weight:950;line-height:1;display:grid;place-items:center}
+  .piece-ctl:hover{background:#263a57}
+  .piece-ctl.clear{background:#4a2430;border-color:#6c3344}
+  .piece-ctl:disabled{opacity:.35;cursor:not-allowed}
+  .mini{display:grid;gap:2px;place-content:center;min-height:55px;min-width:58px}
+  .dot{width:14px;height:14px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+  .dot.pink{background:var(--pink)} .dot.blue{background:var(--blue)} .dot.green{background:var(--green)} .dot.yellow{background:var(--yellow)}
+  .piece-foot{font-size:9px;color:#8193ad}
+
+  .plan{display:none}
+  .plan.show{display:block}
+  .plan-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .score{font-size:12px;color:#a9bad1;background:#0d1728;padding:6px 9px;border-radius:9px}
+  .steps{display:grid;gap:6px;margin-top:7px}
+  .step{display:grid;grid-template-columns:32px 1fr auto;gap:7px;align-items:center;background:#0d1728;border:1px solid #30425d;border-radius:10px;padding:7px}
+  .step.current{border-color:#eaf4ff;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+  .step-num{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#33445f;font-weight:900;font-size:12px}
+  .step-main{font-size:12px;font-weight:800}.step-sub{font-size:10px;color:#93a7c2;margin-top:1px}
+  .step-preview{transform:scale(.73);transform-origin:right center}
+  .notice{margin-top:7px;padding:7px 8px;border-radius:9px;background:#18253a;color:#b8c7da;font-size:11px;line-height:1.4}
+  .mode-row{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+  .mode{border:1px solid #3a4d69;background:#0c1728;padding:8px 10px;border-radius:10px;font-size:12px;font-weight:800}
+  .mode.active{background:#244d85;border-color:#5a9cff}
+
+  @media(max-width:860px){
+    :root{--cell:min(7.2vw,30px)}
+    .app{padding:9px 8px 20px}
+    .layout{grid-template-columns:1fr}
+    .left{position:static}
+    .piece-grid{grid-template-columns:repeat(3,1fr)}
+    .board-card{padding:6px}
+    .right{gap:9px}
+    .section{padding:11px}
+    .topbar{align-items:flex-start}
+    .pill{display:none}
+  }
+  @media(max-width:420px){
+    .piece-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+    .piece{min-height:96px;padding-left:2px;padding-right:2px}
+    .dot{width:12px;height:12px}
+    .mini{min-width:50px;min-height:50px}
+    .section-title{font-size:15px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div><h1>한글 모아모아 최적 배치 도우미</h1><div class="sub">10×16 보드 · 중간 판 수동 입력/드래그 수정 · 가로줄 완성 시 삭제 · 1~3블록 선읽기</div></div>
+    <div class="pill">오프라인 단일 HTML</div>
+  </div>
+
+  <div class="layout">
+    <div class="left">
+      <div class="card board-card">
+        <div class="board-wrap"><div id="board"></div></div>
+        <div class="board-tools">
+          <button class="btn outline" id="undoBtn">↶ 되돌리기</button>
+          <button class="btn danger" id="clearBtn">맵 초기화</button>
+          <button class="btn green" id="commitBtn" disabled>✓ 이 배치 완료</button>
+          <button class="btn primary" id="recalcBtn" disabled>◎ 최적 재계산</button>
+        </div>
+        <div class="status" id="status">혼자 플레이하다가 언제든 현재 게임판을 그대로 입력한 뒤 AI 도움을 받을 수 있습니다. 빈 칸에서 누르고 드래그하면 채우고, 채워진 칸에서 누르고 드래그하면 지웁니다.</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="card section">
+        <div class="section-title">1. 이번에 뜬 블록 선택 (1~3개)</div>
+        <div class="hint">게임을 혼자 진행하다가도 현재 판을 왼쪽 보드에 그대로 그린 뒤 도움받을 수 있습니다. 보드는 클릭뿐 아니라 드래그로 빠르게 채우거나 지울 수 있습니다. 아래 모양을 눌러 현재 남아 있는 블록을 1~3개 선택합니다. 선택된 카드 오른쪽 위의 ×/−/+로 바로 해제하거나 개수를 조절할 수 있습니다.</div>
+        <div class="selected-row" id="selectedRow"></div>
+        <div class="notice" style="margin-top:9px">최적화 기준: <b>줄 삭제 + 생존성 + 다음 블록 대응력</b>을 함께 계산해 누적 점수를 최대화합니다.</div>
+        <div class="actions">
+          <button class="btn outline" id="clearSelectBtn">선택 비우기</button>
+          <button class="btn primary" id="solveBtn" disabled>Enter · 최적 배치 찾기</button>
+        </div>
+        <div class="piece-grid" id="pieceGrid"></div>
+      </div>
+
+      <div class="card section plan" id="planBox">
+        <div class="plan-head">
+          <div><div class="section-title">2. 추천 루트</div><div class="hint">선택한 개수만큼 ① 연두 → ② 하늘 → ③ 주황 순서로 놓을 위치를 한꺼번에 표시합니다.</div></div>
+          <div class="score" id="scoreBox"></div>
+        </div>
+        <div class="steps" id="steps"></div>
+        <div class="notice">게임에서 추천된 배치를 모두 놓은 뒤 <b>‘이 배치 완료’</b>를 누르세요. 선택한 1~3개가 추천 순서대로 적용되고, 각 단계에서 완성된 줄 삭제까지 자동 반영해 현재 보드 상태로 갱신합니다. 실제로 잘못 놓았으면 보드 칸을 직접 수정한 후 <b>‘최적 재계산’</b>을 누르면 됩니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const W=10,H=16;
+  const boardEl=document.getElementById('board');
+  const statusEl=document.getElementById('status');
+  const selectedRow=document.getElementById('selectedRow');
+  const pieceGrid=document.getElementById('pieceGrid');
+  const planBox=document.getElementById('planBox');
+  const stepsEl=document.getElementById('steps');
+  const scoreBox=document.getElementById('scoreBox');
+  const solveBtn=document.getElementById('solveBtn');
+  const recalcBtn=document.getElementById('recalcBtn');
+  const commitBtn=document.getElementById('commitBtn');
+
+  // 스크린샷에 보이는 19종. 좌표는 [x,y].
+  const PIECES=[
+    {id:'p1', n:'1칸', c:'pink', s:[[0,0]]},
+    {id:'p2', n:'3 갈고리', c:'green', s:[[1,0],[0,1],[2,1]]},
+    {id:'p3', n:'3 일자', c:'blue', s:[[0,0],[1,0],[2,0]]},
+    {id:'p4', n:'3 ㄴ', c:'pink', s:[[0,0],[0,1],[1,1]]},
+    {id:'p5', n:'4 ㄴ', c:'pink', s:[[0,0],[1,0],[2,0],[0,1]]},
+    {id:'p6', n:'4 ㅗ', c:'blue', s:[[1,0],[0,1],[1,1],[2,1]]},
+    {id:'p7', n:'4 십자', c:'green', s:[[1,0],[0,1],[2,1],[1,2]]},
+    {id:'p8', n:'5 C', c:'pink', s:[[0,0],[1,0],[0,1],[0,2],[1,2]]},
+    {id:'p9', n:'5 일자', c:'blue', s:[[0,0],[1,0],[2,0],[3,0],[4,0]]},
+    {id:'p10', n:'6 왕관', c:'green', s:[[0,0],[1,0],[2,0],[1,1],[0,2],[2,2]]},
+    {id:'p11', n:'6 지그재그', c:'yellow', s:[[0,0],[1,0],[1,1],[0,2],[1,2],[1,3]]},
+    {id:'p12', n:'7 빗살', c:'green', s:[[0,0],[0,1],[1,1],[0,2],[0,3],[1,3],[0,4]]},
+    {id:'p13', n:'7 왕관', c:'yellow', s:[[1,0],[0,1],[1,1],[2,1],[1,2],[0,3],[2,3]]},
+    {id:'p14', n:'8 링', c:'green', s:[[0,0],[1,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2]]},
+    {id:'p15', n:'8 꺾임', c:'pink', s:[[0,0],[1,0],[1,1],[0,2],[1,2],[0,3],[0,4],[1,4]]},
+    {id:'p16', n:'8 지그재그', c:'yellow', s:[[0,0],[1,0],[0,1],[0,2],[1,2],[0,3],[0,4],[1,4]]},
+    {id:'p17', n:'9 십자', c:'green', s:[[2,0],[0,1],[1,1],[2,1],[3,1],[4,1],[1,2],[3,2],[2,3]]},
+    {id:'p18', n:'10 격자', c:'green', s:[[0,0],[2,0],[0,1],[1,1],[2,1],[0,2],[2,2],[0,3],[1,3],[2,3]]},
+    {id:'p19', n:'10 덩어리', c:'blue', s:[[0,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2],[0,3],[2,3]]}
+  ];
+  const byId=Object.fromEntries(PIECES.map(p=>[p.id,p]));
+  let board=Array(H).fill(0).map(()=>Array(W).fill(0));
+  let selected=[];
+  let undoStack=[];
+  let plan=null, planIndex=0;
+
+  function cloneBoard(b){return b.map(r=>r.slice())}
+  function pushUndo(){undoStack.push(cloneBoard(board)); if(undoStack.length>40) undoStack.shift()}
+  function normalize(shape){
+    const minX=Math.min(...shape.map(p=>p[0])), minY=Math.min(...shape.map(p=>p[1]));
+    return shape.map(([x,y])=>[x-minX,y-minY]).sort((a,b)=>a[1]-b[1]||a[0]-b[0]);
+  }
+  function keyShape(s){return normalize(s).map(p=>p.join(',')).join(';')}
+  function transforms(shape){
+    const out=new Map();
+    for(let mirror=0;mirror<2;mirror++){
+      for(let rot=0;rot<4;rot++){
+        let s=shape.map(([x,y])=>[mirror?-x:x,y]);
+        for(let k=0;k<rot;k++) s=s.map(([x,y])=>[-y,x]);
+        s=normalize(s); out.set(keyShape(s),s);
+      }
+    }
+    return [...out.values()];
+  }
+  const tfCache=Object.fromEntries(PIECES.map(p=>[p.id,transforms(p.s)]));
+  function dims(s){return [Math.max(...s.map(p=>p[0]))+1,Math.max(...s.map(p=>p[1]))+1]}
+
+  function renderBoard(){
+    boardEl.innerHTML='';
+    const ghosts=new Map();
+    if(plan){
+      // 현재 단계부터 남은 추천 블록을 한눈에 볼 수 있게 모두 겹쳐 표시한다.
+      for(let i=planIndex;i<plan.steps.length;i++){
+        const st=plan.steps[i], step=i+1;
+        let first=true;
+        for(const [dx,dy] of st.shape){
+          const k=`${st.x+dx},${st.y+dy}`;
+          if(!ghosts.has(k)) ghosts.set(k,{step,label:first?step:null});
+          first=false;
+        }
+      }
+    }
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const d=document.createElement('div'); d.className='cell'+(board[y][x]?' filled':''); d.dataset.x=x;d.dataset.y=y;
+      const g=ghosts.get(`${x},${y}`);
+      if(g){
+        d.classList.add('ghost',`ghost-${g.step}`);
+        if(board[y][x]) d.classList.add('bad');
+        if(g.label){const b=document.createElement('span');b.className='step-badge';b.textContent=g.label;d.appendChild(b)}
+      }
+      boardEl.appendChild(d);
+    }
+  }
+  // ===== 수동 보드 입력: 클릭 + 드래그 페인팅 =====
+  // 빈 칸에서 시작하면 드래그 경로를 채우고, 채워진 칸에서 시작하면 지운다.
+  // 한 번의 드래그는 되돌리기 1회로 처리한다.
+  let painting=false, paintValue=1, paintedKeys=new Set(), suppressClick=false;
+  function cancelPlanForManualEdit(){
+    plan=null; planIndex=0; planBox.classList.remove('show'); commitBtn.disabled=true;
+    recalcBtn.disabled=selected.length<1;
+  }
+  function cellFromPoint(clientX,clientY){
+    const el=document.elementFromPoint(clientX,clientY);
+    return el && el.closest ? el.closest('.cell') : null;
+  }
+  function paintCell(cell){
+    if(!cell)return false;
+    const x=+cell.dataset.x, y=+cell.dataset.y, k=`${x},${y}`;
+    if(paintedKeys.has(k))return false;
+    paintedKeys.add(k);
+    if(board[y][x]===paintValue)return false;
+    board[y][x]=paintValue;
+    cell.classList.toggle('filled',!!paintValue);
+    cell.classList.remove('ghost','ghost-1','ghost-2','ghost-3','bad');
+    cell.querySelector('.step-badge')?.remove();
+    return true;
+  }
+  boardEl.addEventListener('pointerdown',e=>{
+    const c=e.target.closest('.cell'); if(!c)return;
+    e.preventDefault();
+    const x=+c.dataset.x, y=+c.dataset.y;
+    pushUndo();
+    cancelPlanForManualEdit();
+    painting=true; suppressClick=true; paintedKeys.clear();
+    paintValue=board[y][x]?0:1;
+    boardEl.setPointerCapture?.(e.pointerId);
+    paintCell(c);
+    statusEl.textContent=paintValue?'드래그 입력 중: 지나가는 칸을 채웁니다.':'드래그 삭제 중: 지나가는 칸을 지웁니다.';
+  });
+  boardEl.addEventListener('pointermove',e=>{
+    if(!painting)return;
+    e.preventDefault();
+    paintCell(cellFromPoint(e.clientX,e.clientY));
+  });
+  function endPaint(e){
+    if(!painting)return;
+    painting=false;
+    try{boardEl.releasePointerCapture?.(e.pointerId)}catch(_){}
+    renderBoard();
+    statusEl.textContent=paintValue?'수동 입력 완료. 현재 판을 기준으로 블록 1~3개를 골라 AI 추천을 받을 수 있습니다.':'수동 삭제 완료. 현재 판을 기준으로 다시 계산할 수 있습니다.';
+    setTimeout(()=>{suppressClick=false},0);
+  }
+  boardEl.addEventListener('pointerup',endPaint);
+  boardEl.addEventListener('pointercancel',endPaint);
+  boardEl.addEventListener('click',e=>{
+    // pointerdown에서 이미 클릭/탭 1칸 입력까지 처리하므로 중복 토글을 막는다.
+    if(suppressClick){e.preventDefault();e.stopPropagation();}
+  });
+
+  function miniHTML(shape,color,scale=1){
+    const s=normalize(shape), [w,h]=dims(s); const set=new Set(s.map(([x,y])=>`${x},${y}`));
+    let html=`<div class="mini" style="grid-template-columns:repeat(${w},${16*scale}px);grid-template-rows:repeat(${h},${16*scale}px)">`;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)html += set.has(`${x},${y}`)?`<i class="dot ${color}" style="width:${16*scale}px;height:${16*scale}px"></i>`:`<i style="width:${16*scale}px;height:${16*scale}px"></i>`;
+    return html+'</div>';
+  }
+  function clearPlanAfterSelectionChange(){
+    plan=null; planIndex=0; planBox.classList.remove('show'); commitBtn.disabled=true;
+  }
+  function renderPieces(){
+    pieceGrid.innerHTML='';
+    for(const p of PIECES){
+      const cnt=selected.filter(id=>id===p.id).length;
+      const b=document.createElement('button'); b.className='piece'+(cnt?' selected':''); b.dataset.id=p.id;
+      const controls=cnt?`<span class="piece-controls">
+        <button type="button" class="piece-ctl clear" data-act="clear" title="이 블록 전부 해제">×</button>
+        <button type="button" class="piece-ctl" data-act="minus" title="1개 빼기">−</button>
+        <button type="button" class="piece-ctl" data-act="plus" title="1개 더하기" ${selected.length>=3?'disabled':''}>+</button>
+      </span>`:'';
+      b.innerHTML=`<span class="piece-name">${p.n}</span>${controls}<span class="count">${p.s.length}칸${cnt?` · ×${cnt}`:''}</span>${miniHTML(p.s,p.c,.88)}<span class="piece-foot">${cnt?'−/+로 개수 조절':'눌러서 선택'}</span>`;
+      pieceGrid.appendChild(b);
+    }
+  }
+  pieceGrid.addEventListener('click',e=>{
+    const card=e.target.closest('.piece'); if(!card)return;
+    const id=card.dataset.id;
+    const ctl=e.target.closest('.piece-ctl');
+    if(ctl){
+      e.preventDefault(); e.stopPropagation();
+      const act=ctl.dataset.act;
+      if(act==='plus'){
+        if(selected.length>=3){statusEl.textContent='블록은 최대 3개까지 선택할 수 있습니다.';return;}
+        selected.push(id);
+      }else if(act==='minus'){
+        const i=selected.lastIndexOf(id); if(i>=0) selected.splice(i,1);
+      }else if(act==='clear'){
+        selected=selected.filter(v=>v!==id);
+      }
+      clearPlanAfterSelectionChange(); updateSelection(); renderPieces();
+      return;
+    }
+    // 카드 본체를 누르면 같은 블록도 최대 3개까지 계속 추가할 수 있다.
+    if(selected.length>=3){
+      statusEl.textContent='블록은 최대 3개까지 선택할 수 있습니다. 선택된 카드의 − 또는 ×로 먼저 빼 주세요.';
+      return;
+    }
+    selected.push(id);
+    clearPlanAfterSelectionChange(); updateSelection(); renderPieces();
+  });
+  function updateSelection(){
+    selectedRow.innerHTML='';
+    if(!selected.length) selectedRow.innerHTML='<span class="hint">아직 선택된 블록이 없습니다.</span>';
+    selected.forEach((id,i)=>{
+      const p=byId[id], el=document.createElement('div'); el.className='sel-chip';
+      el.innerHTML=`<b>${i+1}</b> ${p.n} (${p.s.length}) <button class="x" data-i="${i}">×</button>`; selectedRow.appendChild(el);
+    });
+    solveBtn.disabled=selected.length<1||selected.length>3; recalcBtn.disabled=selected.length<1;
+  }
+  selectedRow.addEventListener('click',e=>{
+    const x=e.target.closest('.x'); if(!x)return; selected.splice(+x.dataset.i,1); clearPlanAfterSelectionChange(); updateSelection();renderPieces();
+  });
+  document.getElementById('clearSelectBtn').onclick=()=>{selected=[];clearPlanAfterSelectionChange();updateSelection();renderPieces();};
+
+  // ===== 고속 비트보드 솔버 =====
+  // 각 행을 10비트 정수로 저장한다. 2차원 배열 복사보다 훨씬 빠르다.
+  const FULL=(1<<W)-1;
+  const VARIANTS={};
+  const TEMPLATES={};
+  for(const p of PIECES){
+    VARIANTS[p.id]=tfCache[p.id].map((shape,vi)=>{
+      const [w,h]=dims(shape), rowMasks=Array(h).fill(0);
+      for(const [x,y] of shape) rowMasks[y]|=(1<<x);
+      return {shape,w,h,rowMasks,vi};
+    });
+    TEMPLATES[p.id]=[];
+    for(const v of VARIANTS[p.id]){
+      for(let y=0;y<=H-v.h;y++) for(let x=0;x<=W-v.w;x++){
+        TEMPLATES[p.id].push({x,y,shape:v.shape,vi:v.vi,masks:v.rowMasks.map(m=>m<<x)});
+      }
+    }
+  }
+  function toBits(b){return b.map(r=>r.reduce((m,v,x)=>m|(v?1<<x:0),0))}
+  function fromBits(rows){return rows.map(m=>Array.from({length:W},(_,x)=>(m>>x)&1))}
+  function bitCount(n){n=n-((n>>>1)&0x55555555);n=(n&0x33333333)+((n>>>2)&0x33333333);return (((n+(n>>>4))&0x0F0F0F0F)*0x01010101)>>>24}
+  function canPlaceBits(rows,t){for(let i=0;i<t.masks.length;i++)if(rows[t.y+i]&t.masks[i])return false;return true}
+  function applyBits(rows,t){
+    const nr=rows.slice();
+    for(let i=0;i<t.masks.length;i++)nr[t.y+i]|=t.masks[i];
+    const cleared=[];
+    for(let y=0;y<H;y++) if(nr[y]===FULL){nr[y]=0;cleared.push(y)}
+    return {rows:nr,cleared};
+  }
+  function rowsKey(rows){return rows.join(',')}
+
+  // 공식 점수표는 1/2/3/4/5줄 = 300/1200/2700/4800/7500점,
+  // 즉 동시에 k줄 삭제하면 300*k*k 점이다.
+  function lineScore(k){return 300*k*k}
+
+  function shapeQuality(rows){
+    let occupied=0, rowSetup=0, emptyRuns=0, rectangles=0;
+    for(let y=0;y<H;y++){
+      const n=bitCount(rows[y]); occupied+=n;
+      // 한 줄만 억지로 채우기보다 여러 줄 동시 삭제를 만들 수 있는 7~9칸 줄을 적당히 보상.
+      if(n>=7) rowSetup += (n-6)*(n-6)*9;
+      // 긴 수평 빈공간 유지: 큰 조각 생존성에 중요.
+      let run=0;
+      for(let x=0;x<W;x++){
+        if(!(rows[y]&(1<<x))){run++; if(run>=3) emptyRuns+=run-2}else run=0;
+      }
+    }
+    // 2x2, 3x2 빈 직사각형은 덩어리 조각 대응력의 빠른 근사치.
+    for(let y=0;y<H-1;y++) for(let x=0;x<W-1;x++){
+      const m=3<<x;if(!(rows[y]&m)&&!(rows[y+1]&m))rectangles+=2;
+    }
+    for(let y=0;y<H-1;y++) for(let x=0;x<W-2;x++){
+      const m=7<<x;if(!(rows[y]&m)&&!(rows[y+1]&m))rectangles+=4;
+    }
+    return rowSetup + emptyRuns*1.8 + rectangles - occupied*1.15;
+  }
+
+  function legalCount(rows,pid,cap=70){
+    let n=0;
+    for(const t of TEMPLATES[pid]){
+      if(canPlaceBits(rows,t) && ++n>=cap) break;
+    }
+    return n;
+  }
+  function futureMobility(rows){
+    let score=0, dead=0, total=0;
+    for(const p of PIECES){
+      const n=legalCount(rows,p.id,60); total+=n;
+      if(n===0) dead++;
+      // 후반부에는 큰 조각 비중이 커지므로 큰 조각을 넣을 수 있는 판을 더 가치 있게 본다.
+      const w=0.65+Math.pow(p.s.length/10,1.35)*1.9;
+      score += Math.log1p(n)*w*25;
+    }
+    score -= dead*340;
+    return {score,total,dead};
+  }
+
+  function uniquePermutations(a){
+    const out=[], seen=new Set();
+    function rec(prefix, rest){
+      if(!rest.length){
+        const k=prefix.map(v=>v.id).join('|');
+        if(!seen.has(k)){seen.add(k);out.push(prefix.slice())}
+        return;
+      }
+      for(let i=0;i<rest.length;i++){
+        const next=rest.slice();
+        const [v]=next.splice(i,1);
+        rec(prefix.concat(v),next);
+      }
+    }
+    rec([],a);
+    return out;
+  }
+
+  function expandState(st,p,src){
+    const out=[];
+    for(const t of TEMPLATES[p.id]){
+      if(!canPlaceBits(st.rows,t))continue;
+      const r=applyBits(st.rows,t), k=r.cleared.length;
+      const gained=p.s.length+lineScore(k);
+      const totalPoints=st.points+gained;
+      out.push({
+        rows:r.rows,
+        steps:st.steps.concat([{id:p.id,src,x:t.x,y:t.y,shape:t.shape,cleared:r.cleared.slice(),gained}]),
+        clears:st.clears+k,
+        points:totalPoints,
+        // 실제 점수를 최우선, 동점/근접 후보는 판 모양으로 정렬한다.
+        rank:totalPoints*3.1+shapeQuality(r.rows)
+      });
+    }
+    return out;
+  }
+
+  async function solve(){
+    if(selected.length<1||selected.length>3)return;
+    solveBtn.disabled=true;recalcBtn.disabled=true;commitBtn.disabled=true;
+    statusEl.textContent='고속 탐색 중… 동시 줄 삭제 점수까지 계산합니다.';
+    await new Promise(r=>requestAnimationFrame(r));
+    const t0=performance.now();
+    const baseRows=toBits(board);
+    const orderings=uniquePermutations(selected.map((id,src)=>({id,src})));
+    let finals=[];
+    // 10비트 비트보드 + 단계별 beam. 모바일에서도 거의 즉시 나오도록 후보 수를 제한한다.
+    const BEAMS=[90,115,170];
+    for(const ord of orderings){
+      let states=[{rows:baseRows,steps:[],clears:0,points:0,rank:0}];
+      for(let depth=0;depth<ord.length;depth++){
+        const p=byId[ord[depth].id], seen=new Map();
+        for(const st of states){
+          for(const ns of expandState(st,p,ord[depth].src)){
+            const k=rowsKey(ns.rows), old=seen.get(k);
+            if(!old || ns.rank>old.rank) seen.set(k,ns);
+          }
+        }
+        states=[...seen.values()].sort((a,b)=>b.rank-a.rank).slice(0,BEAMS[depth]);
+        if(!states.length)break;
+        // 긴 연산이더라도 화면이 멈춘 느낌을 줄이기 위한 양보.
+        if(depth===1 && ord.length>2) await new Promise(r=>setTimeout(r,0));
+      }
+      finals.push(...states);
+    }
+    if(!finals.length){
+      plan=null;planBox.classList.remove('show');statusEl.textContent='선택한 블록을 모두 놓을 수 있는 루트가 없습니다. 현재 보드 입력을 확인해 주세요.';solveBtn.disabled=false;recalcBtn.disabled=false;return;
+    }
+
+    // 1차 후보에서 실제 점수와 보드 형태가 좋은 것만 남긴 뒤 미래 19종 대응력을 정밀 비교.
+    finals.sort((a,b)=>b.rank-a.rank);
+    const shortlist=finals.slice(0,Math.min(30,finals.length));
+    let best=null,bestTotal=-Infinity;
+    for(const s of shortlist){
+      const fm=futureMobility(s.rows);
+      const total=s.points*4.0 + shapeQuality(s.rows) + fm.score;
+      if(total>bestTotal){bestTotal=total;best={...s,mob:fm.total,dead:fm.dead,total}}
+    }
+    best.b=fromBits(best.rows);
+    plan=best;planIndex=0;renderPlan();renderBoard();planBox.classList.add('show');
+    commitBtn.disabled=false;solveBtn.disabled=false;recalcBtn.disabled=false;
+    const ms=Math.round(performance.now()-t0);
+    statusEl.textContent=`추천 완료 ${ms}ms · 선택 ${selected.length}개 예상 ${best.points.toLocaleString()}점 · ${best.clears}줄 삭제. 표시된 순서대로 놓으세요.`;
+  }
+
+  function describeTransform(piece,shape){
+    const baseKeys=tfCache[piece.id].map(keyShape); const k=keyShape(shape), idx=baseKeys.indexOf(k);
+    if(idx<0)return '변형';
+    return idx===0?'기본 방향':`회전/반전 변형 ${idx+1}`;
+  }
+  function renderPlan(){
+    if(!plan)return; stepsEl.innerHTML='';
+    plan.steps.forEach((st,i)=>{
+      const p=byId[st.id], el=document.createElement('div'); el.className='step'+(i===planIndex?' current':'');
+      const clearTxt=st.cleared.length?` · 놓으면 ${st.cleared.map(r=>r+1+'행').join(', ')} 삭제`:'';
+      el.innerHTML=`<div class="step-num">${i+1}</div><div><div class="step-main">${p.n} → ${st.y+1}행 ${st.x+1}열 기준</div><div class="step-sub">${describeTransform(p,st.shape)}${clearTxt}</div></div><div class="step-preview">${miniHTML(st.shape,p.c,.75)}</div>`;
+      stepsEl.appendChild(el);
+    });
+    scoreBox.textContent=`예상 ${plan.points.toLocaleString()}점 · 삭제 ${plan.clears}줄`;
+  }
+
+  function placeAndClear(srcBoard,shape,x,y){
+    const next=cloneBoard(srcBoard);
+    // 안전 검사: 현재 상태에서 추천 조각이 실제로 놓일 수 있어야 한다.
+    for(const [dx,dy] of shape){
+      const px=x+dx, py=y+dy;
+      if(px<0||px>=W||py<0||py>=H||next[py][px]) return {board:srcBoard,cleared:[],ok:false};
+    }
+    for(const [dx,dy] of shape) next[y+dy][x+dx]=1;
+    const cleared=[];
+    for(let row=0;row<H;row++){
+      if(next[row].every(Boolean)){
+        next[row].fill(0);
+        cleared.push(row);
+      }
+    }
+    return {board:next,cleared,ok:true};
+  }
+
+  commitBtn.onclick=()=>{
+    if(!plan||!plan.steps.length)return;
+    pushUndo();
+    let totalCleared=0;
+    // 추천된 1~3개를 표시된 순서대로 실제 게임과 동일하게 적용한다.
+    // 각 블록을 놓은 직후 완성된 가로줄을 즉시 삭제한 뒤 다음 블록을 적용한다.
+    for(const st of plan.steps){
+      const res=placeAndClear(board,st.shape,st.x,st.y);
+      if(!res.ok){
+        statusEl.textContent='현재 보드가 추천 계산 당시와 달라서 배치를 적용할 수 없습니다. 현재 판을 기준으로 최적 재계산해 주세요.';
+        undoStack.pop();
+        renderBoard();
+        return;
+      }
+      board=res.board;
+      totalCleared+=res.cleared.length;
+    }
+    planIndex=plan.steps.length;
+    renderBoard();
+    commitBtn.disabled=true;
+    statusEl.textContent=`배치 적용 완료 · ${totalCleared}줄 삭제 반영 · 현재 보드가 갱신되었습니다. 다음 블록 1~3개를 선택하세요.`;
+    selected=[];
+    updateSelection();
+    renderPieces();
+    planBox.classList.remove('show');
+    plan=null;
+    planIndex=0;
+  };
+  recalcBtn.onclick=()=>{plan=null;planIndex=0;renderBoard();solve();};
+  solveBtn.onclick=solve;
+  document.addEventListener('keydown',e=>{if(e.key==='Enter'&&selected.length>=1&&selected.length<=3){e.preventDefault();solve()} if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo()}});
+  function undo(){if(!undoStack.length)return;board=undoStack.pop();plan=null;planIndex=0;planBox.classList.remove('show');commitBtn.disabled=true;renderBoard();statusEl.textContent='이전 보드 상태로 되돌렸습니다.'}
+  document.getElementById('undoBtn').onclick=undo;
+  document.getElementById('clearBtn').onclick=()=>{pushUndo();board=Array(H).fill(0).map(()=>Array(W).fill(0));plan=null;planIndex=0;planBox.classList.remove('show');commitBtn.disabled=true;renderBoard();statusEl.textContent='보드를 초기화했습니다.'};
+
+  renderBoard();renderPieces();updateSelection();
+})();
+</script>
+</body>
+</html>
